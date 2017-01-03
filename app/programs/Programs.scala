@@ -19,48 +19,45 @@ object Programs {
   def toResponse(todo: Todo, url: String): TodoResponse =
     TodoResponse(todo.title, todo.completed, todo.id, url, todo.order)
 
-  def list[R: _todoStorage: _routes](secure: Boolean, host: String): Eff[R, Future[Seq[TodoResponse]]] =
+  def list[R: _todoStorage: _routes](secure: Boolean, host: String): Eff[R, Seq[TodoResponse]] =
     for {
-      futureTodos        <- getAll()
-      futureTodosWithUrl <- Eff.traverseA(futureTodos)(_.toList.traverseU(todo => url(todo.id, secure, host).map(url => (todo,url))))
-    } yield futureTodosWithUrl.map(_.map { case (todo, url) => toResponse(todo, url) })
+      todos        <- getAll()
+      todosWithUrl <- todos.toList.traverseU(todo => url(todo.id, secure, host).map(url => (todo,url)))
+    } yield todosWithUrl map { case (todo, url) => toResponse(todo, url) }
 
-  def deleteAll[R: _todoStorage](): Eff[R, Future[Unit]] = deleteAll()
+  def deleteAll[R: _todoStorage](): Eff[R, Unit] = deleteAll()
 
-  def delete[R: _todoStorage](id: Long): Eff[R, Future[Unit]] = delete(id)
+  def delete[R: _todoStorage](id: Long): Eff[R, Unit] = delete(id)
 
-  def view[R: _todoStorage: _routes](id: Long, secure: Boolean, host: String): Eff[R, Future[Option[TodoResponse]]] =
+  def view[R: _todoStorage: _routes](id: Long, secure: Boolean, host: String): Eff[R, Option[TodoResponse]] =
     for {
-      futureMaybeTodo        <- get(id)
-      futureMaybeTodoWithUrl <- Eff.traverseA(futureMaybeTodo)(_.traverseU(todo => url(todo.id, secure, host).map(url => (todo,url))))
-    } yield futureMaybeTodoWithUrl.map(_.map { case (todo, url) => toResponse(todo, url) })
+      maybeTodo        <- get(id)
+      maybeTodoWithUrl <- maybeTodo.traverseU(todo => url(todo.id, secure, host).map(url => (todo,url)))
+    } yield maybeTodoWithUrl map { case (todo, url) => toResponse(todo, url) }
 
 
-  def create[R: _todoStorage: _routes](req: CreateRequest, secure: Boolean, host: String): Eff[R, Future[TodoResponse]] = {
+  def create[R: _todoStorage: _routes](req: CreateRequest, secure: Boolean, host: String): Eff[R, TodoResponse] = {
     val completed = false
     val todo = Todo(req.title, completed, -1, req.order)
     for {
-      futureId  <- upsert(todo)
-      futureUrl <- Eff.traverseA(futureId)(id => url(id, secure, host))
-    } yield for {
-      id  <- futureId
-      url <- futureUrl
+      id  <- upsert(todo)
+      url <- url(id, secure, host)
     } yield toResponse(todo.copy(id = id), url)
   }
 
-  def modify[R: _todoStorage: _routes](id: Long, patches: Map[String, JsValue], secure: Boolean, host: String): Eff[R, Future[Option[TodoResponse]]] = {
+  def modify[R: _todoStorage: _routes](id: Long, patches: Map[String, JsValue], secure: Boolean, host: String): Eff[R, Option[TodoResponse]] = {
     for {
-      futureMaybeTodo <- get(id)
-      futureMaybePatched = futureMaybeTodo.map(maybeTodo => patches.foldLeft(maybeTodo) { (todo, field) =>
+      maybeTodo <- get(id)
+      maybePatched = patches.foldLeft(maybeTodo) { (todo, field) =>
         field match {
           case ("completed", JsBoolean(patchCompleted)) => todo.map(t => t.copy(completed = patchCompleted))
           case ("title", JsString(title))               => todo.map(t => t.copy(title=title))
           case ("order", JsNumber(order))               => todo.map(t => t.copy(order=Some(order.toLong)))
           case _                                        => None
         }
-      })
-      _                 <- Eff.traverseA(futureMaybePatched)(_.traverseU(todo => upsert(todo)))
-      futureTodoWithUrl <- Eff.traverseA(futureMaybePatched)(_.traverseU(todo => url(todo.id, secure, host).map(url => (todo,url))))
-    } yield futureTodoWithUrl.map(_.map { case (todo, url) => toResponse(todo, url) })
+      }
+      _           <- maybePatched.traverseU(todo => upsert(todo))
+      todoWithUrl <- maybePatched.traverseU(todo => url(todo.id, secure, host).map(url => (todo,url)))
+    } yield todoWithUrl map { case (todo, url) => toResponse(todo, url) }
   }
 }

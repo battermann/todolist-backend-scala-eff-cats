@@ -7,29 +7,29 @@ import scala.concurrent.Future
 
 sealed trait TodoStorage[+A]
 
-case class Upsert[T](todo: Todo) extends TodoStorage[Future[Long]]
-case class Get[T](id: Long) extends TodoStorage[Future[Option[T]]]
-case class Delete[T](id: Long) extends TodoStorage[Future[Unit]]
-case class DeleteAll[T]() extends TodoStorage[Future[Unit]]
-case class GetAll[T]() extends TodoStorage[Future[Seq[T]]]
+case class Upsert[T](todo: Todo) extends TodoStorage[Long]
+case class Get[T](id: Long) extends TodoStorage[Option[T]]
+case class Delete[T](id: Long) extends TodoStorage[Unit]
+case class DeleteAll[T]() extends TodoStorage[Unit]
+case class GetAll[T]() extends TodoStorage[Seq[T]]
 
 object TodoStorage {
   type _todoStorage[R] = TodoStorage |= R
 
-  def upsert[T, R: _todoStorage](todo: Todo): Eff[R, Future[Long]] =
-    Eff.send[TodoStorage, R, Future[Long]](Upsert(todo))
+  def upsert[T, R: _todoStorage](todo: Todo): Eff[R, Long] =
+    Eff.send[TodoStorage, R, Long](Upsert(todo))
 
-  def get[T, R: _todoStorage](id: Long): Eff[R, Future[Option[Todo]]] =
-    Eff.send[TodoStorage, R, Future[Option[Todo]]](Get(id))
+  def get[T, R: _todoStorage](id: Long): Eff[R, Option[Todo]] =
+    Eff.send[TodoStorage, R, Option[Todo]](Get(id))
 
-  def delete[T, R: _todoStorage](id: Long): Eff[R, Future[Unit]] =
-    Eff.send[TodoStorage, R, Future[Unit]](Delete(id))
+  def delete[T, R: _todoStorage](id: Long): Eff[R, Unit] =
+    Eff.send[TodoStorage, R, Unit](Delete(id))
 
-  def deleteAll[T, R: _todoStorage](): Eff[R, Future[Unit]] =
-    Eff.send[TodoStorage, R, Future[Unit]](DeleteAll())
+  def deleteAll[T, R: _todoStorage](): Eff[R, Unit] =
+    Eff.send[TodoStorage, R, Unit](DeleteAll())
 
-  def getAll[T, R: _todoStorage](): Eff[R, Future[Seq[Todo]]] =
-    Eff.send[TodoStorage, R, Future[Seq[Todo]]](GetAll())
+  def getAll[T, R: _todoStorage](): Eff[R, Seq[Todo]] =
+    Eff.send[TodoStorage, R, Seq[Todo]](GetAll())
 }
 
 sealed trait Routes[+A]
